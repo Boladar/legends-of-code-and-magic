@@ -18,6 +18,7 @@ class Card:
         self.opponent_health_change = opponent_health_change
         self.card_draw = card_draw
         self.health_change = 0
+        self.used = False
 
 class Player:
     def __init__(self,player_health = 0, player_mana = 0, player_deck = 0, player_rune = 0, player_draw = 0,command = ""):
@@ -45,6 +46,10 @@ class Cell:
         self.flag = 0
 
 def WPA(allies:[],enemies:[]):
+
+    enemies.sort(key=lambda x: x.attack,reverse=True)
+    allies.sort(key=lambda x: x.defense,reverse=True)
+
     A = []
     row = []
     for r in range(len(allies)):
@@ -62,35 +67,21 @@ def WPA(allies:[],enemies:[]):
 
             cell = A[r][c]
 
-            if A[r-1][c].flag < 0:
-                cell.WAP = allies[r].attack - enemies[c].defense
-            else:
-                cell.WAP = allies[r].attack - A[r-1][c].defense
+            log("(" + str(r) + "," + str(c) + ")" + "attack: " + str(allies[r].attack) + ", defense" + str(enemies[c].defense))
+            cell.WAP = allies[r].attack - enemies[c].defense
+            log("cell wap: " + str(cell.WAP))
+
+            if(r-1 >= 0):
+                if A[r-1][c].flag < 0:
+                    cell.WAP = allies[r].attack - enemies[c].defense
+                elif r-1 and A[r-1][c].flag >= 0:
+                    cell.WAP = allies[r].attack - A[r-1][c].defense
 
             if cell.WAP > 0:
                 cell.defense = 0
             else:
                 cell.defense = abs(cell.WAP)
             cell.flag = -3           
-        for c in range(len(enemies)):
-
-            if r-1>=0 and ( A[r-1][c].flag == -1 or A[r-1][c].flag == -2 ):
-                A[r][c].flag = -2
-                continue
-
-            cell = A[r][c]
-
-            if A[r-1][c].flag < 0:
-                cell.WAP = allies[r].attack - enemies[c].defense
-            else:
-                cell.WAP = allies[r].attack - A[r-1][c].defense
-
-            if cell.WAP > 0:
-                cell.defense = 0
-            else:
-                cell.defense = abs(cell.WAP)
-            cell.flag = -3
-
         #look for the best
         minWAP = 10000
         best_c_index = -1
@@ -102,22 +93,27 @@ def WPA(allies:[],enemies:[]):
                     best_c_index = c
 
         if best_c_index != -1:
-            if A[r][best_c_index].defense == 0:
+            if A[r][best_c_index].WAP == 0:
                 A[r][best_c_index].flag = -1
             elif A[r][best_c_index].defense > 0:
                 A[r][best_c_index].flag = r
+                
+            Player.command += "ATTACK " + str(allies[r].instance_id) +" " + str(enemies[best_c_index].instance_id) + ";"  
+            allies[r].used = True
 
     for r in range(len(allies)):
-        print()
+        print(" ",file=sys.stderr)
         for c in range(len(enemies)):
             print("(" + str(A[r][c].defense) + "," + str(A[r][c].WAP) + "," + str(A[r][c].flag) + ")",end=" ", file=sys.stderr)
+
+    #return
+    
 
 class General:
     def __init__(self):
         self.Cards_list = []
         self.allies = []
         self.enemies = []
-        self.deck = []
         self.summoned = []
 
     def Update(self, Cards_list):
@@ -148,7 +144,7 @@ class General:
                 canBeSummoned.append(card)
         print("number of summonable creatures:" + str(len(canBeSummoned)),file=sys.stderr)
 
-        canBeSummoned.sort(key= lambda x: x.cost,reverse=True)
+        canBeSummoned.sort(key= lambda x: x.cost,reverse = True)
 
         for s in canBeSummoned:
             if(Player.leftMana >= s.cost):
@@ -238,51 +234,49 @@ def FindKillableOponent(unit: Card):
 def Attack(Cards_list):
     global OPONNENT_HEALTH
 
-    print ("allies: " + str(len(General.allies)),file=sys.stderr)
-    print ("enemies: " + str(len(General.enemies)),file=sys.stderr)
+    log ("allies: " + str(len(General.allies)))
+    log ("enemies: " + str(len(General.enemies)))
 
     guardians = []
+    notGuardians = []
     for enemy in General.enemies:
         if(str(enemy.abilities).find("G") != -1):
             guardians.append(enemy)
-    print("guardians: " + str(len(guardians)),file=sys.stderr)
-
-    for ally in General.allies:
-        if(str(ally.abilities).find("G") != -1):
-            continue
-
-        if( (General.CountAlliedAttackPotential() < General.CountEnemyAttackPotential() ) and (len(General.enemies) > 0 )):
-            for a in General.allies:
-                target = FindKillableOponent(a)
-                Player.command += "ATTACK " + str(ally.instance_id) + " " + str(target.instance_id) + ";"
-
-        elif( (General.CountAlliedAttackPotential() < General.CountEnemyAttackPotential() ) and (len(General.enemies) > 0) and (str(enemy.abilities).find("G") == -1) and (General.CountAlliedAttackPotential() >= OPONNENT_HEALTH) ):
-            pass #tu bedzie nakurwianie w przeciwnika
-
         else:
-            if(len(guardians) > 0):    
-                for g in guardians:
-                    if(g.health_change < g.defense):
-                        Player.command += "ATTACK " + str(ally.instance_id) + " " + str(g.instance_id) + ";"
-                        g.health_change += ally.attack   
-            else:
-                Player.command += "ATTACK "+ str(ally.instance_id)+" -1" +";"
-                OPONNENT_HEALTH -= ally.attack
+            notGuardians.append(enemy)
+    log("guardians: " + str(len(guardians)))
 
+    WPA(General.allies,guardians)
+
+    notUsed = []
+    for ally in General.allies:
+        if ally.used == False:
+            notUsed.append(ally)
+
+    log("not used: " + str(len(notUsed)))
+    WPA(notUsed,notGuardians)
+
+    notUsed = []
+    for ally in General.allies:
+        if ally.used == False:
+            notUsed.append(ally)
+
+    for n in notUsed:
+        m = "ATTACK " + str(n.instance_id) + " -1;"
+        Player.command += m
 
 def Battle(Cards_list):
-    print("BATTLE",file=sys.stderr)
+    log("BATTLE")
     General.Summon()
     Use(Cards_list)
 
-    WPA(General.allies,General.enemies)
     Attack(Cards_list)
 
-    if(Player.command == ""):
+    log ( "player.command: " + str(len(Player.command)))
+    if(len(Player.command) == 0):
         print("PASS")
-    else:
+    elif(len(Player.command) > 0):
         print(Player.command)
-
 
 
 def AnalyzeOponnentActions(Cards_list,actions_to_analyze):
@@ -338,7 +332,7 @@ while True:
     AnalyzeOponnentActions(Cards_list,actions_to_analyze)
     General.Update(Cards_list)
 
-    print ("TURN: " + str(TURN),file=sys.stderr)    
+    log("TURN: " + str(TURN))    
     log("ENEMY HEALTH: " + str(OPONNENT_HEALTH))
 
     if(len(General.allies)>0):
@@ -347,7 +341,7 @@ while True:
         Draft(Cards_list)
     else:
         Battle(Cards_list)
-
+    
     # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr)
 
