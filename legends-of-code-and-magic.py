@@ -1,9 +1,30 @@
 import sys
 import math
 
-# Auto-generated code below aims at helping you parse
-# the standard input according to the problem statement.
+class Player:
+    def __init__(self,health,mana,deck,rune,draw):
+        self.health = health
+        self.mana = mana
+        self.deck = deck
+        self.rune = rune
+        self.draw = draw
 
+class Card:
+    def __init__(self,card_number,instance_id,location,card_type,cost,attack,defense,abilities,my_health_change,opponent_health_change,card_draw):
+        self.card_number = card_number
+        self.instance_id = instance_id
+        self.location = location
+        self.card_type = card_type
+        self.cost = cost
+        self.attack = attack
+        self.defense = defense
+        self.abilities = abilities
+        self.my_health_change = my_health_change
+        self.opponent_health_change = opponent_health_change
+        self.card_draw = card_draw
+
+def log(msg):
+    print(msg,file=sys.stderr)
 
 # game loop
 while True:
@@ -25,8 +46,5 @@ while True:
         my_health_change = int(my_health_change)
         opponent_health_change = int(opponent_health_change)
         card_draw = int(card_draw)
-
-    # Write an action using print
-    # To debug: print("Debug messages...", file=sys.stderr)
 
     print("PASS")
